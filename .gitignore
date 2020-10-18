@@ -1,5 +1,8 @@
 *.npy
 *.png
+*.jpg
+*.json
+*.pth
 */data/
 
 *.pyc

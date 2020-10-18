@@ -506,11 +506,11 @@ def calc_img_wise(config, model, train_loader, test_loader, loss_func="cross_ent
 
     logging.info(f"The results for this run are:")
     logging.info("Influences: ")
-    logging.info(influence[:3])
+    logging.info(influence[:5])
     logging.info("Most harmful img IDs: ")
-    logging.info(harmful[:3])
+    logging.info(harmful[:5])
     logging.info("Most helpful img IDs: ")
-    logging.info(helpful[:3])
+    logging.info(helpful[:5])
 
     influences_path = outdir.joinpath(
         f"influence_results_{test_start_index}_" f"{test_sample_num}.json"
