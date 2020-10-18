@@ -80,12 +80,12 @@ def train(trainloader, testloader, net):
 
 
 def save_model(net):
-    PATH = './cifar_net.pth'
+    PATH = '../models/cifar_net.pth'
     torch.save(net.state_dict(), PATH)
 
 
 def load_model():
-    PATH = './cifar_net.pth'
+    PATH = '../models/cifar_net.pth'
     net = Net()
     net.load_state_dict(torch.load(PATH))
     net.cuda()

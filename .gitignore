@@ -6,8 +6,10 @@
 */data/
 
 *.pyc
-outdir/*
-data/*
+output_influence/*
+datasets/*
+models/*
+results/*
 __pycache__/
 build/
 dist/
