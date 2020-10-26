@@ -1,3 +1,4 @@
+import os
 import sys
 
 import torch
@@ -139,7 +140,7 @@ class CustomizedModel:
     model = None
     input_size = 0
 
-    def __init__(self, model_name, num_classes, freeze_nontop=True, use_pretrained=False, params_path=None):
+    def __init__(self, model_name, num_classes, freeze_nontop=True, use_pretrained=False):
         """
 
         Args:
@@ -151,78 +152,106 @@ class CustomizedModel:
         """
 
         if model_name == "resnet50":
-            self.model = models.resnet50(pretrained=use_pretrained)
-            if not use_pretrained:
-                # 先把预训练的参数load出来，再用初始化的模型读取
+            self.model = models.resnet50(pretrained=False)
+            if use_pretrained:
+                # 先判断下模型预训练的参数有没有下载好
+                params_path = get_pretrain_model_path(model_name)
+                if not os.path.isfile(params_path):
+                    params_path = manully_download_pretrain_params(model_name)
+                # 把预训练的参数load出来，再用初始化的模型读取
                 state_dict = torch.load(params_path)
                 self.model.load_state_dict(state_dict)
-            set_parameter_requires_grad(self.model, freeze_nontop)
+                set_parameter_requires_grad(self.model, freeze_nontop)
             num_ftrs = self.model.fc.in_features
             self.model.fc = nn.Linear(num_ftrs, num_classes)
             self.input_size = 224
 
         elif model_name == "alexnet":
-            self.model = models.alexnet(pretrained=use_pretrained)
-            if not use_pretrained:
-                # 先把预训练的参数load出来，再用初始化的模型读取
+            self.model = models.alexnet(pretrained=False)
+            if use_pretrained:
+                # 先判断下模型预训练的参数有没有下载好
+                params_path = get_pretrain_model_path(model_name)
+                if not os.path.isfile(params_path):
+                    params_path = manully_download_pretrain_params(model_name)
+                # 把预训练的参数load出来，再用初始化的模型读取
                 state_dict = torch.load(params_path)
                 self.model.load_state_dict(state_dict)
-            set_parameter_requires_grad(self.model, freeze_nontop)
+                set_parameter_requires_grad(self.model, freeze_nontop)
             num_ftrs = self.model.classifier[6].in_features
             self.model.classifier[6] = nn.Linear(num_ftrs, num_classes)
             self.input_size = 224
 
         elif model_name == "vgg16":
-            self.model = models.vgg16(pretrained=use_pretrained)
-            if not use_pretrained:
-                # 先把预训练的参数load出来，再用初始化的模型读取
+            self.model = models.vgg16(pretrained=False)
+            if use_pretrained:
+                # 先判断下模型预训练的参数有没有下载好
+                params_path = get_pretrain_model_path(model_name)
+                if not os.path.isfile(params_path):
+                    params_path = manully_download_pretrain_params(model_name)
+                # 把预训练的参数load出来，再用初始化的模型读取
                 state_dict = torch.load(params_path)
                 self.model.load_state_dict(state_dict)
-            set_parameter_requires_grad(self.model, freeze_nontop)
+                set_parameter_requires_grad(self.model, freeze_nontop)
             num_ftrs = self.model.classifier[6].in_features
             self.model.classifier[6] = nn.Linear(num_ftrs, num_classes)
             self.input_size = 224
 
         elif model_name == "vgg16_bn":
-            self.model = models.vgg16_bn(pretrained=use_pretrained)
-            if not use_pretrained:
-                # 先把预训练的参数load出来，再用初始化的模型读取
+            self.model = models.vgg16_bn(pretrained=False)
+            if use_pretrained:
+                # 先判断下模型预训练的参数有没有下载好
+                params_path = get_pretrain_model_path(model_name)
+                if not os.path.isfile(params_path):
+                    params_path = manully_download_pretrain_params(model_name)
+                # 把预训练的参数load出来，再用初始化的模型读取
                 state_dict = torch.load(params_path)
                 self.model.load_state_dict(state_dict)
-            set_parameter_requires_grad(self.model, freeze_nontop)
+                set_parameter_requires_grad(self.model, freeze_nontop)
             num_ftrs = self.model.classifier[6].in_features
             self.model.classifier[6] = nn.Linear(num_ftrs, num_classes)
             self.input_size = 224
 
         elif model_name == "vgg19":
-            self.model = models.vgg19(pretrained=use_pretrained)
-            if not use_pretrained:
-                # 先把预训练的参数load出来，再用初始化的模型读取
+            self.model = models.vgg19(pretrained=False)
+            if use_pretrained:
+                # 先判断下模型预训练的参数有没有下载好
+                params_path = get_pretrain_model_path(model_name)
+                if not os.path.isfile(params_path):
+                    params_path = manully_download_pretrain_params(model_name)
+                # 把预训练的参数load出来，再用初始化的模型读取
                 state_dict = torch.load(params_path)
                 self.model.load_state_dict(state_dict)
-            set_parameter_requires_grad(self.model, freeze_nontop)
+                set_parameter_requires_grad(self.model, freeze_nontop)
             num_ftrs = self.model.classifier[6].in_features
             self.model.classifier[6] = nn.Linear(num_ftrs, num_classes)
             self.input_size = 224
 
         elif model_name == "vgg19_bn":
-            self.model = models.vgg16_bn(pretrained=use_pretrained)
-            if not use_pretrained:
-                # 先把预训练的参数load出来，再用初始化的模型读取
+            self.model = models.vgg16_bn(pretrained=False)
+            if use_pretrained:
+                # 先判断下模型预训练的参数有没有下载好
+                params_path = get_pretrain_model_path(model_name)
+                if not os.path.isfile(params_path):
+                    params_path = manully_download_pretrain_params(model_name)
+                # 把预训练的参数load出来，再用初始化的模型读取
                 state_dict = torch.load(params_path)
                 self.model.load_state_dict(state_dict)
-            set_parameter_requires_grad(self.model, freeze_nontop)
+                set_parameter_requires_grad(self.model, freeze_nontop)
             num_ftrs = self.model.classifier[6].in_features
             self.model.classifier[6] = nn.Linear(num_ftrs, num_classes)
             self.input_size = 224
 
         elif model_name == "mobilenetv2":
-            self.model = models.mobilenet_v2(pretrained=use_pretrained)
-            if not use_pretrained:
-                # 先把预训练的参数load出来，再用初始化的模型读取
+            self.model = models.mobilenet_v2(pretrained=False)
+            if use_pretrained:
+                # 先判断下模型预训练的参数有没有下载好
+                params_path = get_pretrain_model_path(model_name)
+                if not os.path.isfile(params_path):
+                    params_path = manully_download_pretrain_params(model_name)
+                # 把预训练的参数load出来，再用初始化的模型读取
                 state_dict = torch.load(params_path)
                 self.model.load_state_dict(state_dict)
-            set_parameter_requires_grad(self.model, freeze_nontop)
+                set_parameter_requires_grad(self.model, freeze_nontop)
             num_ftrs = self.model.classifier[1].in_features
             self.model.classifier[1] = nn.Linear(num_ftrs, num_classes)
             self.input_size = 224
@@ -230,8 +259,16 @@ class CustomizedModel:
         elif model_name == "squeezenet":
             """ Squeezenet
             """
-            self.model = models.squeezenet1_0(pretrained=use_pretrained)
-            set_parameter_requires_grad(self.model, freeze_nontop)
+            self.model = models.squeezenet1_0(pretrained=False)
+            if use_pretrained:
+                # 先判断下模型预训练的参数有没有下载好
+                params_path = get_pretrain_model_path(model_name)
+                if not os.path.isfile(params_path):
+                    params_path = manully_download_pretrain_params(model_name)
+                # 把预训练的参数load出来，再用初始化的模型读取
+                state_dict = torch.load(params_path)
+                self.model.load_state_dict(state_dict)
+                set_parameter_requires_grad(self.model, freeze_nontop)
             self.model.classifier[1] = nn.Conv2d(512, num_classes, kernel_size=(1, 1), stride=(1, 1))
             self.model.num_classes = num_classes
             self.input_size = 224
@@ -239,12 +276,16 @@ class CustomizedModel:
         elif model_name == "densenet":
             """ Densenet
             """
-            self.model = models.densenet121(pretrained=use_pretrained)
-            if not use_pretrained:
-                # 先把预训练的参数load出来，再用初始化的模型读取
+            self.model = models.densenet121(pretrained=False)
+            if use_pretrained:
+                # 先判断下模型预训练的参数有没有下载好
+                params_path = get_pretrain_model_path(model_name)
+                if not os.path.isfile(params_path):
+                    params_path = manully_download_pretrain_params(model_name)
+                # 把预训练的参数load出来，再用初始化的模型读取
                 state_dict = torch.load(params_path)
                 self.model.load_state_dict(state_dict)
-            set_parameter_requires_grad(self.model, freeze_nontop)
+                set_parameter_requires_grad(self.model, freeze_nontop)
             num_ftrs = self.model.classifier.in_features
             self.model.classifier = nn.Linear(num_ftrs, num_classes)
             self.input_size = 224
@@ -253,12 +294,16 @@ class CustomizedModel:
             """ Inception v3
             Be careful, expects (299,299) sized images and has auxiliary output
             """
-            self.model = models.inception_v3(pretrained=use_pretrained)
-            if not use_pretrained:
-                # 先把预训练的参数load出来，再用初始化的模型读取
+            self.model = models.inception_v3(pretrained=False)
+            if use_pretrained:
+                # 先判断下模型预训练的参数有没有下载好
+                params_path = get_pretrain_model_path(model_name)
+                if not os.path.isfile(params_path):
+                    params_path = manully_download_pretrain_params(model_name)
+                # 把预训练的参数load出来，再用初始化的模型读取
                 state_dict = torch.load(params_path)
                 self.model.load_state_dict(state_dict)
-            set_parameter_requires_grad(self.model, freeze_nontop)
+                set_parameter_requires_grad(self.model, freeze_nontop)
             # Handle the auxilary net
             num_ftrs = self.model.AuxLogits.fc.in_features
             self.model.AuxLogits.fc = nn.Linear(num_ftrs, num_classes)

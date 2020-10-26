@@ -1,12 +1,13 @@
 import time
+import argparse
 
 import matplotlib.pyplot as plt
 import numpy as np
-from torchvision import transforms
+import torch
+from torchvision import transforms, datasets
+from torch.utils.data import DataLoader
 
 import pytorch_influence_functions as ptif
-from customized_model import load_model
-from mask_recognization import processing_data
 
 
 def img_tensor_to_ndarray(img_tuple):
@@ -25,20 +26,11 @@ def img_tensor_to_ndarray(img_tuple):
     return img, label
 
 
-def plot_single_test_result(test_id, helpful, harmful, trainloader, testloader):
-    # 下面的目的是不要让dataloader每次都执行一下随机裁剪
-    showT = transforms.Compose([
-        transforms.Resize(input_size),
-        transforms.CenterCrop(input_size),
-        transforms.ToTensor(),
-        transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-    ])
-    trainloader.dataset.change_transform(showT)
-    # 下面是画图
+def plot_single_test_result(test_id, helpful, harmful, trainloader, testloader, classes):
     img, label = img_tensor_to_ndarray(testloader.dataset[test_id])
     fig, axs = plt.subplots(3, 5, sharex='col', sharey='row')
     axs[0, 0].imshow(img)
-    axs[0, 0].set_title("no mask" if label == 1 else "mask")
+    axs[0, 0].set_title(classes[label])
     axs[0, 0].set_ylabel('test point(%s)' % test_id)
     for i in range(1, 5):
         axs[0, i].axis('off')
@@ -46,34 +38,103 @@ def plot_single_test_result(test_id, helpful, harmful, trainloader, testloader):
     for i in range(5):
         img, label = img_tensor_to_ndarray(trainloader.dataset[helpful[i]])
         axs[1, i].imshow(img)
-        axs[1, i].set_title("no mask" if label == 1 else "mask")
+        axs[1, i].set_title(classes[label])
     axs[2, 0].set_ylabel('harmful')
     for i in range(5):
         img, label = img_tensor_to_ndarray(trainloader.dataset[harmful[i]])
         axs[2, i].imshow(img)
-        axs[2, i].set_title("no mask" if label == 1 else "mask")
+        axs[2, i].set_title(classes[label])
     return fig
 
 
-if __name__ == "__main__":
-    timeStr = time.strftime("%Y-%m-%d_%Hh%Mm%Ss", time.localtime(time.time()))
-    data_dir = './datasets/5f680a696ec9b83bb0037081-momodel/data/image'
-    model_name = "mobilenetv2"
+def set_parameter_requires_grad(model, freeze_nontop):
+    if freeze_nontop:
+        for param in model.parameters():
+            param.requires_grad = False
+    else:
+        for param in model.parameters():
+            param.requires_grad = True
 
-    model, input_size = load_model(model_name, "./results/%s_1018_2.pth" % model_name, num_classes=2)
-    # process的时候会给图片随机排序
-    trainloader, testloader = processing_data(data_dir, input_size, input_size)
+
+def cal_influence_ontest(model_path, test_point_path, train_dataset_path):
+    """
+
+    Args:
+        model_path: Path of a pytorch model, .pt or .pth file.
+        test_point_path: Path of a test image to be classified and explained.
+        train_dataset_path: Path of the original train dataset,
+                            organized like './datasets/mask', './datasets/nomask'
+
+    Returns: Three list, test point path and predicted class, top 5 helpful train points and
+            top 5 harmful train points.
+
+    """
+
+    gpu = 0 if torch.cuda.is_available() else -1
+
+    timeStr = time.strftime("%Y-%m-%d_%Hh%Mm%Ss", time.localtime(time.time()))
+    model = torch.load(model_path)
+    set_parameter_requires_grad(model, False)
+    model.eval()
+    T = transforms.Compose([
+            transforms.Resize(224),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+            transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+        ])
+    test_set = datasets.ImageFolder(test_point_path, transform=T)
+    test_loader = DataLoader(test_set, shuffle=False)
+    train_set = datasets.ImageFolder(train_dataset_path, transform=T)
+    train_loader = DataLoader(train_set, shuffle=False)
+    classes = train_set.classes
 
     config = ptif.get_default_config()
-    # config["test_start_index"] = 5
-    # ptif.init_logging('logfile_%s_%s.log' % (model_name, timeStr))
-    # ptif.calc_img_wise(config, model, trainloader, testloader)
-    test_id = 14
-    influences, harmful, helpful, _ = ptif.calc_influence_single(model, trainloader, testloader,
+    test_id = 0
+    z_test, t_test = test_set[test_id]
+    z_test = test_loader.collate_fn([z_test])
+    # 如果有GPU的话执行下面这句话
+    config['gpu'] = gpu
+    if config['gpu'] < 0:
+        model.cpu()
+    else:
+        z_test = z_test.cuda()
+    pred_idx = model(z_test).cpu().detach().numpy().argmax()
+    influences, harmful, helpful, _ = ptif.calc_influence_single(model, train_loader, test_loader,
                                                                  test_id_num=test_id,
                                                                  gpu=config["gpu"],
                                                                  recursion_depth=config["recursion_depth"],
                                                                  r=config["r_averaging"])
+    # fig = plot_single_test_result(test_id, helpful, harmful, train_loader, test_loader, classes)
+    # plt.savefig("./figs/mask_recogizaiton_test_%s_%s" % (test_id, timeStr))
+    # test_path = [(test_set.imgs[test_id][0], classes[test_set.imgs[test_id][1]])]
+    test_path = [(test_set.imgs[test_id][0], classes[pred_idx])]
+    helpful_path = []
+    harmful_path = []
+    for i in range(5):
+        helpful_path.append((train_set.imgs[helpful[i]][0], classes[train_set.imgs[helpful[i]][1]]))
+        harmful_path.append((train_set.imgs[harmful[i]][0], classes[train_set.imgs[harmful[i]][1]]))
+    return test_path, helpful_path, harmful_path
 
-    fig = plot_single_test_result(test_id, helpful, harmful, trainloader, testloader)
-    plt.savefig("./figs/mask_recogizaiton_test_%s" % test_id)
+
+parser = argparse.ArgumentParser(description='Calculate influence functions.')
+parser.add_argument('--train_data_path', '-train', help='训练数据集地址, 子文件夹以类名命名, 必要参数')
+parser.add_argument('--test_point_path', '-test', help='测试点地址, 请包装成与训练数据集一样的文件格式, 需要有所有类别标签的子文件夹, 其中一个包含一张测试图片即可, 必要参数')
+parser.add_argument('--model_path', '-model', help='PyTorch模型地址, .pt或.pth文件, 必要参数')
+# parser.add_argument('--gpu', '-g', help='是否要用GPU跑, -1表示不用, 0表示用')
+args = parser.parse_args()
+
+
+if __name__ == "__main__":
+    try:
+        test_path, helpful_path, harmful_path = cal_influence_ontest(args.model_path, args.test_point_path,
+                                                                     args.train_data_path)
+        print(test_path, helpful_path, harmful_path)
+    except Exception as e:
+        print(e)
+    # train_data_path = './mask_dataset'
+    # test_point_path = './mask_dataset_test'
+    # model_path = './results/mobilenetv2_Adam_2020-10-20_10h34m23s_entire.pth'
+    #
+    # test_path, helpful_path, harmful_path = cal_influence_ontest(model_path, test_point_path, train_data_path)
+    #
+    # print(test_path, helpful_path, harmful_path)

@@ -133,7 +133,7 @@ def get_default_config():
     config = {
         "outdir": "./output_influence",
         "seed": 42,
-        "gpu": 0,
+        "gpu": -1,
         "dataset": "xxx",
         "num_classes": 2,
         "test_sample_num": 1,

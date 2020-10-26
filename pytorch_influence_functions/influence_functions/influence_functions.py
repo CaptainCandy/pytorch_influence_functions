@@ -323,7 +323,7 @@ def calc_influence_single(
     # Calculate the influence function
     train_dataset_size = len(train_loader.dataset)
     influences = []
-    for i in tqdm(range(train_dataset_size)):
+    for i in tqdm(range(train_dataset_size), ncols=80):
         z, t = train_loader.dataset[i]
         z = train_loader.collate_fn([z])
         t = train_loader.collate_fn([t])
