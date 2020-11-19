@@ -26,11 +26,11 @@ def img_tensor_to_ndarray(img_tuple):
     return img, label
 
 
-def plot_single_test_result(test_id, helpful, harmful, trainloader, testloader, classes):
+def plot_single_test_result(test_id, helpful, harmful, trainloader, testloader, classes, pred_idx):
     img, label = img_tensor_to_ndarray(testloader.dataset[test_id])
     fig, axs = plt.subplots(3, 5, sharex='col', sharey='row')
     axs[0, 0].imshow(img)
-    axs[0, 0].set_title(classes[label])
+    axs[0, 0].set_title('%s(pred:%s)' % (classes[label], classes[pred_idx]))
     axs[0, 0].set_ylabel('test point(%s)' % test_id)
     for i in range(1, 5):
         axs[0, i].axis('off')
@@ -77,8 +77,9 @@ def cal_influence_ontest(model_path, test_point_path, train_dataset_path):
     set_parameter_requires_grad(model, False)
     model.eval()
     T = transforms.Compose([
-            transforms.Resize(224),
-            transforms.CenterCrop(224),
+            transforms.Resize([224, 224]),
+            # transforms.Resize([299, 299]),
+            # transforms.CenterCrop(224),
             transforms.ToTensor(),
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
@@ -89,23 +90,28 @@ def cal_influence_ontest(model_path, test_point_path, train_dataset_path):
     classes = train_set.classes
 
     config = ptif.get_default_config()
-    test_id = 0
-    z_test, t_test = test_set[test_id]
-    z_test = test_loader.collate_fn([z_test])
-    # 如果有GPU的话执行下面这句话
+
     config['gpu'] = gpu
-    if config['gpu'] < 0:
-        model.cpu()
-    else:
-        z_test = z_test.cuda()
-    pred_idx = model(z_test).cpu().detach().numpy().argmax()
-    influences, harmful, helpful, _ = ptif.calc_influence_single(model, train_loader, test_loader,
-                                                                 test_id_num=test_id,
-                                                                 gpu=config["gpu"],
-                                                                 recursion_depth=config["recursion_depth"],
-                                                                 r=config["r_averaging"])
-    # fig = plot_single_test_result(test_id, helpful, harmful, train_loader, test_loader, classes)
-    # plt.savefig("./figs/mask_recogizaiton_test_%s_%s" % (test_id, timeStr))
+    config["recursion_depth"] =100
+    config["r_averaging"] = 1
+    config['damp'] = 0.1
+    config['scale'] = 50000
+
+    for test_id in range(0, len(test_loader)):
+        influences, harmful, helpful, _, pred_idx = ptif.calc_influence_single(model, train_loader, test_loader,
+                                                                     test_id_num=test_id,
+                                                                     gpu=config["gpu"],
+                                                                     recursion_depth=config["recursion_depth"],
+                                                                     r=config["r_averaging"],
+                                                                     damp=config['damp'],
+                                                                     scale=config['scale'])
+        print(influences[harmful[0]])
+        print(influences[helpful[0]])
+        print((test_set.imgs[test_id][0], classes[pred_idx]))
+        fig = plot_single_test_result(test_id, helpful, harmful, train_loader, test_loader, classes, pred_idx)
+        plt.savefig("./figs/vehicle_recogizaiton_test_%s_%s.jpg" % (test_id, timeStr))
+        plt.close(fig)
+        torch.cuda.empty_cache()
     # test_path = [(test_set.imgs[test_id][0], classes[test_set.imgs[test_id][1]])]
     test_path = [(test_set.imgs[test_id][0], classes[pred_idx])]
     helpful_path = []
@@ -125,16 +131,16 @@ args = parser.parse_args()
 
 
 if __name__ == "__main__":
-    try:
-        test_path, helpful_path, harmful_path = cal_influence_ontest(args.model_path, args.test_point_path,
-                                                                     args.train_data_path)
-        print(test_path, helpful_path, harmful_path)
-    except Exception as e:
-        print(e)
-    # train_data_path = './mask_dataset'
-    # test_point_path = './mask_dataset_test'
-    # model_path = './results/mobilenetv2_Adam_2020-10-20_10h34m23s_entire.pth'
-    #
-    # test_path, helpful_path, harmful_path = cal_influence_ontest(model_path, test_point_path, train_data_path)
-    #
-    # print(test_path, helpful_path, harmful_path)
+    # try:
+    #     test_path, helpful_path, harmful_path = cal_influence_ontest(args.model_path, args.test_point_path,
+    #                                                                  args.train_data_path)
+    #     print(test_path, helpful_path, harmful_path)
+    # except Exception as e:
+    #     print(e)
+    train_data_path = './car_airplane'
+    test_point_path = './car_airplane_test_cover2'
+    model_path = './results/resnet50_v2_Adam_2020-11-17_10h29m31s_entire.pth'
+
+    test_path, helpful_path, harmful_path = cal_influence_ontest(model_path, test_point_path, train_data_path)
+
+    print(test_path, helpful_path, harmful_path)

@@ -44,11 +44,46 @@ class DatasetFromSubset(torch.utils.data.Dataset):
         self.transform = transform
 
 
+def load_data_normal(data_path, height=224, width=224, batch_size=32, test_split=0.3):
+    """
+
+    Args:
+        data_path:
+        height:
+        width:
+        batch_size:
+        test_split: 测试集划分比例
+    Returns:
+
+    """
+    trans = transforms.Compose([
+                transforms.Resize(height),
+                transforms.CenterCrop(height),
+                transforms.ToTensor(),
+                transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
+            ])
+    dataset = datasets.ImageFolder(data_path, transform=trans)
+    # 划分数据集
+    train_size = int((1 - test_split) * len(dataset))
+    test_size = len(dataset) - train_size
+    print("Train size: %s" % train_size)
+    print("Test size: %s" % test_size)
+    train_dataset, test_dataset = torch.utils.data.random_split(dataset,
+                                                                [train_size, test_size])
+    # 创建一个 DataLoader 对象
+    train_data_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
+                                                    shuffle=True)
+    valid_data_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
+                                                    shuffle=True)
+
+    return train_data_loader, valid_data_loader
+
+
 def load_data(train_data_path, test_data_path, height=224, width=224, batch_size=32):
     """
     数据处理部分
     :param data_path: 数据路径
-    :param height:高度
+    :param height: 高度
     :param width: 宽度
     :param batch_size: 每次读取图片的数量
     :param test_split: 测试集划分比例
@@ -134,10 +169,14 @@ def train_model(model, dataloaders_dict, criterion, optimizer, num_epochs=25, is
                     #   but in testing we only consider the final output.
                     if is_inception and phase == 'train':
                         # From https://discuss.pytorch.org/t/how-to-optimize-inception-model-with-auxiliary-classifiers/7958
-                        outputs, aux_outputs = model(inputs)
-                        loss1 = criterion(outputs, labels)
-                        loss2 = criterion(aux_outputs, labels)
-                        loss = loss1 + 0.4 * loss2
+                        if model.aux_logits:
+                            outputs, aux_outputs = model(inputs)
+                            loss1 = criterion(outputs, labels)
+                            loss2 = criterion(aux_outputs, labels)
+                            loss = loss1 + 0.4 * loss2
+                        else:
+                            outputs = model(inputs)
+                            loss = criterion(outputs, labels)
                     else:
                         outputs = model(inputs)
                         loss = criterion(outputs, labels)
@@ -180,11 +219,12 @@ def train_model(model, dataloaders_dict, criterion, optimizer, num_epochs=25, is
 
 if __name__ == "__main__":
 
-    train_data_dir = './mask_dataset'
-    test_data_dir = './mask_dataset_test'
-    model_name = 'vgg19'
+    train_data_dir = './car_airplane'
+    test_data_dir = './car_airplane_test'
+    model_name = 'inceptionv3'
     num_classes = 2
     batch_size = 32
+    test_split = 0.3
     num_workers = 4
     freeze_nontop = True
     num_epochs = 10
@@ -199,7 +239,9 @@ if __name__ == "__main__":
     print("Initializing Datasets and Dataloaders...")
 
     train_data_loader, valid_data_loader = load_data(train_data_dir, test_data_dir,
-                                                     height=input_size, width=input_size)
+                                                     height=input_size, width=input_size, batch_size=batch_size)
+    # train_data_loader, valid_data_loader = load_data_normal(data_dir, height=input_size, width=input_size,
+    #                                                         batch_size=batch_size, test_split=test_split)
     print(train_data_loader.dataset.classes)
     dataloaders_dict = {
         'train': train_data_loader,
@@ -244,7 +286,7 @@ if __name__ == "__main__":
         set_parameter_requires_grad(model_ft, False)
     timeStr = time.strftime("%Y-%m-%d_%Hh%Mm%Ss", time.localtime(time.time()))
     # torch.save(model_ft.state_dict(), './results/%s_%s_%s.pth' % (model_name, "Adam", timeStr))
-    torch.save(model_ft, './results/mask_%s_%s_%s_entire.pth' % (model_name, "Adam", timeStr))
+    torch.save(model_ft, './results/%s_v2_%s_%s_entire.pth' % (model_name, "Adam", timeStr))
     # idx = [i + 1 for i in range(len(hist))]
     # plt.plot(idx, hist)
     # plt.xticks(idx)
@@ -254,4 +296,4 @@ if __name__ == "__main__":
     plt.ylabel("accuracy")
     # for a, b in zip(idx, hist):
     #     plt.text(a, b, '%.2f' % b, ha='center', va='bottom', fontsize=14)
-    plt.savefig("./figs/mask_%s_%s_%s.jpg" % (model_name, "Adam", timeStr))
+    plt.savefig("./figs/%s_v2_%s_%s.jpg" % (model_name, "Adam", timeStr))

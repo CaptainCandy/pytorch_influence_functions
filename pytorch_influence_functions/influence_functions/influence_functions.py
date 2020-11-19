@@ -12,7 +12,7 @@ from pathlib import Path
 
 from pytorch_influence_functions.influence_functions.hvp_grad import (
     grad_z,
-    s_test_sample,
+    s_test_sample, s_test_cg,
 )
 from pytorch_influence_functions.influence_functions.utils import (
     save_json,
@@ -306,11 +306,16 @@ def calc_influence_single(
     if s_test_vec is None:
         z_test, t_test = test_loader.dataset[test_id_num]
         z_test = test_loader.collate_fn([z_test])
-        t_test = test_loader.collate_fn([t_test])
+        if gpu < 0:
+            model.cpu()
+        else:
+            z_test = z_test.cuda()
+        pred_idx = torch.argmax(model(z_test)).unsqueeze(0)
+
         s_test_vec = s_test_sample(
             model,
             z_test,
-            t_test,
+            pred_idx,
             train_loader,
             gpu,
             recursion_depth=recursion_depth,
@@ -341,7 +346,8 @@ def calc_influence_single(
             )
         with torch.no_grad():
             tmp_influence = (
-                -sum(
+                # -sum(
+                sum(
                     [
                         ####################
                         # TODO: potential bottle neck, takes 17% execution time
@@ -354,12 +360,12 @@ def calc_influence_single(
                 / train_dataset_size
             )
 
-        influences.append(tmp_influence)
+        influences.append(tmp_influence.item())
 
     harmful = np.argsort(influences)
     helpful = harmful[::-1]
 
-    return influences, harmful.tolist(), helpful.tolist(), test_id_num
+    return influences, harmful.tolist(), helpful.tolist(), test_id_num, pred_idx.item()
 
 
 def get_dataset_sample_ids_per_class(class_id, num_samples, test_loader, start_index=0):

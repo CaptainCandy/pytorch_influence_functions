@@ -3,9 +3,10 @@ import torch
 import torch.nn.functional as F
 from torch.nn.utils import parameters_to_vector
 from torch.autograd import grad
-from torch.autograd.functional import vhp
+from torch.autograd.functional import vhp, hvp
 from torch.utils.data import DataLoader
 from tqdm import tqdm
+from matplotlib import pyplot as plt
 
 from pytorch_influence_functions.influence_functions.utils import (
     conjugate_gradient,
@@ -106,9 +107,9 @@ def s_test(x_test, y_test, model, i, samples_loader, gpu=-1, damp=0.01, scale=25
     params = tuple(p.detach().requires_grad_() for p in params)
 
     # TODO: Dynamically set the recursion depth so that iterations stop once h_estimate stabilises
-    progress_bar = tqdm(samples_loader, desc=f"IHVP sample {i}")
+    progress_bar = tqdm(samples_loader, desc=f"IHVP sample set {i}")
+    norms = []
     for i, (x_train, y_train) in enumerate(progress_bar):
-
         if gpu >= 0:
             x_train, y_train = x_train.cuda(), y_train.cuda()
 
@@ -119,6 +120,7 @@ def s_test(x_test, y_test, model, i, samples_loader, gpu=-1, damp=0.01, scale=25
             return loss
 
         hv = vhp(f, params, tuple(h_estimate), strict=True)[1]
+        # hv = hvp(f, params, tuple(h_estimate), strict=True)[1]
 
         # Recursively calculate h_estimate
         with torch.no_grad():
@@ -127,9 +129,15 @@ def s_test(x_test, y_test, model, i, samples_loader, gpu=-1, damp=0.01, scale=25
                 for _v, _h_e, _hv in zip(v, h_estimate, hv)
             ]
 
-            if i % 100 == 0:
+            if i % 3 == 0:
                 norm = sum([h_.norm() for h_ in h_estimate])
+                norms.append(norm)
                 progress_bar.set_postfix({"est_norm": norm.item()})
+        torch.cuda.empty_cache()
+
+    plt.plot(norms)
+    plt.savefig("./figs/norms_.jpg")
+    plt.close()
 
     with torch.no_grad():
         load_weights(model, names, params, as_params=True)
