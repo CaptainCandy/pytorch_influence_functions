@@ -95,23 +95,30 @@ def cal_influence_ontest(model_path, test_point_path, train_dataset_path):
     config["recursion_depth"] =100
     config["r_averaging"] = 1
     config['damp'] = 0.1
-    config['scale'] = 50000
+    if 'vgg19' in model_path:
+        config['scale'] = 1000
+    elif 'resnet50' in model_path:
+        config['scale'] = 50000
+    elif 'alexnet' in model_path:
+        config['scale'] = 10000
+    else:
+        config['scale'] = 50000
+    print('scale now is: %s' % config['scale'])
 
-    for test_id in range(0, len(test_loader)):
-        influences, harmful, helpful, _, pred_idx = ptif.calc_influence_single(model, train_loader, test_loader,
-                                                                     test_id_num=test_id,
-                                                                     gpu=config["gpu"],
-                                                                     recursion_depth=config["recursion_depth"],
-                                                                     r=config["r_averaging"],
-                                                                     damp=config['damp'],
-                                                                     scale=config['scale'])
-        print(influences[harmful[0]])
-        print(influences[helpful[0]])
-        print((test_set.imgs[test_id][0], classes[pred_idx]))
-        fig = plot_single_test_result(test_id, helpful, harmful, train_loader, test_loader, classes, pred_idx)
-        plt.savefig("./figs/vehicle_recogizaiton_test_%s_%s.jpg" % (test_id, timeStr))
-        plt.close(fig)
-        torch.cuda.empty_cache()
+    test_id = 0
+    influences, harmful, helpful, _, pred_idx = ptif.calc_influence_single(model, train_loader, test_loader,
+                                                                           test_id_num=test_id,
+                                                                           gpu=config["gpu"],
+                                                                           recursion_depth=config["recursion_depth"],
+                                                                           r=config["r_averaging"],
+                                                                           damp=config['damp'],
+                                                                           scale=config['scale'])
+    print(influences[harmful[0]])
+    print(influences[helpful[0]])
+    print((test_set.imgs[test_id][0], classes[pred_idx]))
+    # fig = plot_single_test_result(test_id, helpful, harmful, train_loader, test_loader, classes, pred_idx)
+    # plt.savefig("./figs/vehicle_recogizaiton_test_%s_%s.jpg" % (test_id, timeStr))
+    # plt.close(fig)
     # test_path = [(test_set.imgs[test_id][0], classes[test_set.imgs[test_id][1]])]
     test_path = [(test_set.imgs[test_id][0], classes[pred_idx])]
     helpful_path = []
