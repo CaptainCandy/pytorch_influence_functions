@@ -108,7 +108,7 @@ def s_test(x_test, y_test, model, i, samples_loader, gpu=-1, damp=0.01, scale=25
 
     # TODO: Dynamically set the recursion depth so that iterations stop once h_estimate stabilises
     progress_bar = tqdm(samples_loader, desc=f"IHVP sample set {i}")
-    norms = []
+    # norms = []
     for i, (x_train, y_train) in enumerate(progress_bar):
         if gpu >= 0:
             x_train, y_train = x_train.cuda(), y_train.cuda()
@@ -131,13 +131,13 @@ def s_test(x_test, y_test, model, i, samples_loader, gpu=-1, damp=0.01, scale=25
 
             if i % 3 == 0:
                 norm = sum([h_.norm() for h_ in h_estimate])
-                norms.append(norm)
+                # norms.append(norm)
                 progress_bar.set_postfix({"est_norm": norm.item()})
         torch.cuda.empty_cache()
 
-    plt.plot(norms)
-    plt.savefig("./figs/norms_.jpg")
-    plt.close()
+    # plt.plot(norms)
+    # plt.savefig("./figs/norms_.jpg")
+    # plt.close()
 
     with torch.no_grad():
         load_weights(model, names, params, as_params=True)

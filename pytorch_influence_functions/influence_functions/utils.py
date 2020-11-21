@@ -131,17 +131,17 @@ def init_logging(filename=None):
 def get_default_config():
     """Returns a default config file"""
     config = {
-        "outdir": "./output_influence",
+        "outdir": "./results",
         "seed": 42,
         "gpu": -1,
         "dataset": "xxx",
         "num_classes": 2,
         "test_sample_num": 1,
         "test_start_index": 0,
-        "recursion_depth": 50,
-        "r_averaging": 10,
-        "scale": 10,
-        "damp": 0.01,
+        "recursion_depth": 100,
+        "r_averaging": 1,
+        "scale": 1000,
+        "damp": 0.1,
         "calc_method": "img_wise",
         "log_filename": None,
     }
