@@ -22,7 +22,7 @@ def set_parameter_requires_grad(model, freeze_nontop):
             param.requires_grad = True
 
 
-def cal_influence_ontest_withprob(model, test_loader, train_loader, gpu):
+def cal_influence_ontest_withprob(model, test_loader, train_loader, config):
     """
 
     Args:
@@ -37,35 +37,28 @@ def cal_influence_ontest_withprob(model, test_loader, train_loader, gpu):
 
     # timeStr = time.strftime("%Y-%m-%d_%Hh%Mm%Ss", time.localtime(time.time()))
 
+
     classes = train_loader.dataset.classes
-    config = ptif.get_default_config()
     test_id = 0
     z_test, t_test = test_loader.dataset[test_id]
     z_test = test_loader.collate_fn([z_test])
 
-    config['gpu'] = gpu
+
     if config['gpu'] < 0:
         model.cpu()
     else:
         z_test = z_test.cuda()
 
-    pred = model(z_test).cpu()
-    # pred_idx = pred.detach().numpy().argmax()
+    pred = model(z_test).cpu()[0]
     pred_prob = nn.Softmax()(pred)[t_test]
-    influences, harmful, helpful, _ = ptif.calc_influence_single(model, train_loader, test_loader,
+    influences, harmful, helpful, _, pred_idx = ptif.calc_influence_single(model, train_loader, test_loader,
                                                                  test_id_num=test_id,
                                                                  gpu=config["gpu"],
                                                                  recursion_depth=config["recursion_depth"],
-                                                                 r=config["r_averaging"])
-    # fig = plot_single_test_result(test_id, helpful, harmful, train_loader, test_loader, classes)
-    # plt.savefig("./figs/mask_recogizaiton_test_%s_%s" % (test_id, timeStr))
-    # test_path = [(test_set.imgs[test_id][0], classes[test_set.imgs[test_id][1]])]
-    # test_path = [(test_set.imgs[test_id][0], classes[pred_idx])]
-    # helpful_path = []
-    # harmful_path = []
-    # for i in range(5):
-    #     helpful_path.append((train_set.imgs[helpful[i]][0], classes[train_set.imgs[helpful[i]][1]]))
-    #     harmful_path.append((train_set.imgs[harmful[i]][0], classes[train_set.imgs[harmful[i]][1]]))
+                                                                 r=config["r_averaging"],
+                                                                 damp=config['damp'],
+                                                                 scale=config['scale'])
+
     return helpful, harmful, (classes[t_test], pred_prob)
 
 
@@ -151,20 +144,22 @@ def train_model(model, dataloaders_dict, num_epochs=25, is_inception=False, gpu=
 
     time_elapsed = time.time() - since
     print('Training complete in {:.0f}m {:.0f}s'.format(time_elapsed // 60, time_elapsed % 60))
-    print('Best val Acc: {:4f}'.format(best_acc))
+    # print('Best val Acc: {:4f}'.format(best_acc))
 
     # load best model weights
     model.load_state_dict(best_model_wts)
     return model, val_acc_history
 
 
-def cal_prob_add_one(model_path, test_point_path, train_data_path, gpu):
+def cal_prob_add_one(model_path, test_point_path, train_data_path):
+    gpu = 0 if torch.cuda.is_available() else -1
+
     model = torch.load(model_path)
     set_parameter_requires_grad(model, False)
     model.eval()
     T = transforms.Compose([
-        transforms.Resize(224),
-        transforms.CenterCrop(224),
+        transforms.Resize([224, 224]),
+        # transforms.CenterCrop(224),
         transforms.ToTensor(),
         transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
     ])
@@ -173,11 +168,31 @@ def cal_prob_add_one(model_path, test_point_path, train_data_path, gpu):
     train_set = datasets.ImageFolder(train_data_path, transform=T)
     train_loader = DataLoader(train_set, shuffle=False)
     classes = train_set.classes
-    # helpful, harmful, test_point_ori = cal_influence_ontest_withprob(model, test_loader, train_loader, gpu)
+
+    config = ptif.get_default_config()
+    config['gpu'] = gpu
+    config["recursion_depth"] = 100
+    config["r_averaging"] = 1
+    config['damp'] = 0.1
+    model_name = ''
+    if 'vgg19' in model_path:
+        config['scale'] = 1000
+        model_name = 'vgg19'
+    elif 'resnet50' in model_path:
+        config['scale'] = 50000
+        model_name = 'resnet50'
+    elif 'alexnet' in model_path:
+        config['scale'] = 10000
+        model_name = 'alexnet'
+    else:
+        config['scale'] = 50000
+    print('scale now is: %s' % config['scale'])
+
+    helpful, harmful, test_point_ori = cal_influence_ontest_withprob(model, test_loader, train_loader, config)
     # np.save("./results/helpful.npy", np.asarray(helpful))
     # np.save("./results/harmful.npy", np.asarray(harmful))
     # np.save("./results/test_point_ori.npy", np.asarray(test_point_ori))
-    helpful = np.load("./results/helpful.npy")
+    # helpful = np.load("./results/helpful.npy")
     # harmful = np.load("./results/harmful.npy")
     # test_point_ori = np.load("./results/test_point_ori.npy")
 
@@ -186,7 +201,7 @@ def cal_prob_add_one(model_path, test_point_path, train_data_path, gpu):
 
     helpful_prob = []
     for i in range(1, 21):
-        model_wrapper = CustomizedModel("mobilenetv2", 2, False,
+        model_wrapper = CustomizedModel(model_name, len(classes), False,
                                         use_pretrained=False)
         sub_model = model_wrapper.model
         # 每次只取影响值最大的i个train point
@@ -198,7 +213,7 @@ def cal_prob_add_one(model_path, test_point_path, train_data_path, gpu):
             'train': sub_train_loader,
             'val': test_loader
         }
-        print("Training on %s helpful training points..." % i)
+        print("Training on %s influential training points..." % i)
         sub_model, _ = train_model(sub_model, dataloaders_dict, 10, gpu=gpu)
 
         z_test, t_test = test_loader.dataset[0]
@@ -207,19 +222,19 @@ def cal_prob_add_one(model_path, test_point_path, train_data_path, gpu):
             sub_model.cpu()
         else:
             z_test = z_test.cuda()
-        pred = sub_model(z_test).cpu()
+        pred = sub_model(z_test).cpu()[0]
         pred_prob = nn.Softmax()(pred)[t_test]
         helpful_prob.append(pred_prob)
 
         torch.cuda.empty_cache()
 
-    np.save("./results/helpful_prob.npy", np.asarray(helpful_prob))
+    # np.save("./results/helpful_prob.npy", np.asarray(helpful_prob))
 
     rand_idx = [i for i in range(len(train_set))]
     random.shuffle(rand_idx)
     random_prob = []
     for i in range(1, 21):
-        model_wrapper = CustomizedModel("mobilenetv2", 2, False,
+        model_wrapper = CustomizedModel(model_name, len(classes), False,
                                         use_pretrained=False)
         sub_model = model_wrapper.model
         # 每次只取影响值最大的i个train point
@@ -240,37 +255,45 @@ def cal_prob_add_one(model_path, test_point_path, train_data_path, gpu):
             sub_model.cpu()
         else:
             z_test = z_test.cuda()
-        pred = sub_model(z_test).cpu()
+        pred = sub_model(z_test).cpu()[0]
         pred_prob = nn.Softmax()(pred)[t_test]
         random_prob.append(pred_prob)
 
         torch.cuda.empty_cache()
 
-    np.save("./results/random_prob.npy", np.asarray(random_prob))
+    # np.save("./results/random_prob.npy", np.asarray(random_prob))
 
     return helpful_prob, random_prob
 
 
-if __name__ == "__main__":
-    train_data_path = './mask_dataset'
-    test_point_path = './mask_dataset_test'
-    model_path = './results/mobilenetv2_Adam_2020-10-20_10h34m23s_entire.pth'
-
-    # helpful_prob, random_prob = cal_prob_add_one(model_path, test_point_path, train_data_path, 0)
-    helpful_prob = np.load("./results/helpful_prob.npy", allow_pickle=True)
+def evaluate_influence_function(model_path, test_point_path, train_data_path):
+    helpful_prob, random_prob = cal_prob_add_one(model_path, test_point_path, train_data_path)
+    # helpful_prob = np.load("./results/helpful_prob.npy", allow_pickle=True)
     helpful = []
     for t in helpful_prob:
-        helpful.append(t[0])
-    random_prob = np.load("./results/random_prob.npy", allow_pickle=True)
+        helpful.append(t.item())
+    # random_prob = np.load("./results/random_prob.npy", allow_pickle=True)
     random = []
     for t in random_prob:
-        random.append(t[0])
+        random.append(t.item())
 
-    plt.plot(helpful, label='influential')
-    plt.plot(random, label='random')
-    plt.xlabel("Number of training points added")
-    plt.ylabel("Probability of a certain testing point")
-    plt.legend()
-    plt.show()
+    fig, ax = plt.subplots(1, 1)
+    ax.plot(helpful, label='influential')
+    ax.plot(random, label='random')
+    ax.set_xlabel("Number of training points added")
+    ax.set_ylabel("Probability of a certain testing point")
+    ax.set_xticks(np.arange(0, 20, 1))
+    ax.set_yticks(np.arange(0.3, 1.1, 0.1))
+    ax.legend()
+    plt.close()
 
-    print(helpful, random)
+    return fig
+
+
+if __name__ == "__main__":
+    train_data_path = './car_airplane'
+    test_point_path = './car_airplane_test_one'
+    model_path = './results/alexnet_v1_Adam_2020-11-17_11h11m24s_entire.pth'
+
+    fig = evaluate_influence_function(model_path, test_point_path, train_data_path)
+    fig.savefig("./figs/influence_evaluation.jpg")
