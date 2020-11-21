@@ -221,7 +221,7 @@ if __name__ == "__main__":
 
     train_data_dir = './car_airplane'
     test_data_dir = './car_airplane_test'
-    model_name = 'resnet50'
+    model_name = 'inceptionv3'
     num_classes = 2
     batch_size = 32
     test_split = 0.3
@@ -286,7 +286,7 @@ if __name__ == "__main__":
         set_parameter_requires_grad(model_ft, False)
     timeStr = time.strftime("%Y-%m-%d_%Hh%Mm%Ss", time.localtime(time.time()))
     # torch.save(model_ft.state_dict(), './results/%s_%s_%s.pth' % (model_name, "Adam", timeStr))
-    torch.save(model_ft, './results/%s_v100_%s_%s_entire.pth' % (model_name, "Adam", timeStr))
+    torch.save(model_ft, './results/%s_v2_%s_%s_entire.pth' % (model_name, "Adam", timeStr))
     # idx = [i + 1 for i in range(len(hist))]
     # plt.plot(idx, hist)
     # plt.xticks(idx)
@@ -296,4 +296,4 @@ if __name__ == "__main__":
     plt.ylabel("accuracy")
     # for a, b in zip(idx, hist):
     #     plt.text(a, b, '%.2f' % b, ha='center', va='bottom', fontsize=14)
-    plt.savefig("./figs/%s_v100_%s_%s.jpg" % (model_name, "Adam", timeStr))
+    plt.savefig("./figs/%s_v2_%s_%s.jpg" % (model_name, "Adam", timeStr))

@@ -24,4 +24,3 @@ pyvenv.cfg
 /.python-version
 /pytorch_influence_functions/test_influence_functions/lightning_logs/
 *.JPEG
-*.~vsdx

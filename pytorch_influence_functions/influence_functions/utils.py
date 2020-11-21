@@ -140,8 +140,8 @@ def get_default_config():
         "test_start_index": 0,
         "recursion_depth": 50,
         "r_averaging": 10,
-        "scale": 1000,
-        "damp": 0.1,
+        "scale": 10,
+        "damp": 0.01,
         "calc_method": "img_wise",
         "log_filename": None,
     }
